@@ -32,7 +32,8 @@ def count_partner_flags(results: dict, param: str) -> int:
 
 
 def classify_case(R, consecutive_flags, flags_in_window, mean_abs_z,
-                  partner_flagged, complaints_2h, check_complaints_only=True):
+                  partner_flagged, complaints_2h, transient_spikes=0,
+                  check_complaints_only=True):
     """Return (label, reasons). Rules are checked in this order."""
     anomaly = flags_in_window > 0
     support = partner_flagged >= 1 or complaints_2h >= SUPPORT_COMPLAINTS
@@ -44,6 +45,11 @@ def classify_case(R, consecutive_flags, flags_in_window, mean_abs_z,
                            "No partner parameter or complaints corroborate it"]
         return VERIFY, [f"Sensor reliability R={R:.2f} is low, but other evidence disagrees "
                         "with a pure sensor fault"]
+
+    # A one-reading jump that immediately returned to normal is deliberately
+    # ignored.  It is logged by validation but must not become a water alarm.
+    if anomaly and consecutive_flags == 0 and transient_spikes and not support:
+        return NORMAL, ["Transient spike returned to baseline without corroboration"]
 
     # 2) Persistent + trusted + (supported or extreme)
     persistent = consecutive_flags >= MIN_CONSECUTIVE and R >= R_INCIDENT
@@ -86,7 +92,7 @@ def classify_location(results: dict, complaints_2h: int = 0) -> list:
         partner = count_partner_flags(results, param)
         label, reasons = classify_case(
             r["R"], r["consecutive_flags"], r["flags_in_window"], r["mean_abs_z"],
-            partner, complaints_2h, check_complaints_only=False)
+            partner, complaints_2h, r.get("transient_spikes", 0), check_complaints_only=False)
         if label != NORMAL:
             cases.append({
                 "parameter": param, "label": label, "reasons": reasons,

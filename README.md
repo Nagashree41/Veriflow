@@ -1,13 +1,19 @@
-# Veriflow
-Event name: Hackoween (The Last Lantern [Climate/ Disaster Tech])
+Veriflow
 
-Fixed Thresholds,Raise Alarm
+Event: Hackoween – The Last Lantern (Climate/Disaster Tech)
 
-One alert, 4 possible causes
-Sensor Fault
-Isolated Spike
-Missing data
-Genuine Change
+Approach
+Fixed thresholds, raise alarm.
 
-Target Audience: Utility control-room operators, field sampling teams, campus and municipal water managers
+Alert Classification
+One alert, four possible causes:
+- Sensor Fault
+- Isolated Spike
+- Missing Data
+- Genuine Change
 
+Target Audience
+- Utility control-room operators
+- Field sampling teams
+- Campus water managers
+- Municipal water managers
