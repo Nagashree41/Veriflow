@@ -9,6 +9,7 @@ Without them the dashboard falls back to a plain Plotly map and the picker falls
 number boxes, so the app never crashes.
 """
 import math
+import os
 
 import numpy as np
 import pandas as pd
@@ -24,13 +25,35 @@ try:
 except Exception:          # not installed
     HAS_FOLIUM = False
 
-TILES = {
-    "Dark": ("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-             "© OpenStreetMap contributors © CARTO"),
-    "Street": ("https://tile.openstreetmap.org/{z}/{x}/{y}.png", "© OpenStreetMap contributors"),
-    "Satellite": ("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                  "Tiles © Esri"),
+ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services"
+TILES = {   # all keyless (no account needed)
+    "Dark": (f"{ESRI}/Canvas/World_Dark_Gray_Base/MapServer/tile/{{z}}/{{y}}/{{x}}",
+             "Tiles © Esri, HERE, Garmin, OpenStreetMap contributors", 16),
+    "Street": (f"{ESRI}/World_Street_Map/MapServer/tile/{{z}}/{{y}}/{{x}}", "Tiles © Esri", 19),
+    "Satellite": (f"{ESRI}/World_Imagery/MapServer/tile/{{z}}/{{y}}/{{x}}", "Tiles © Esri", 19),
 }
+
+
+def _carto_key():
+    """Optional free CARTO key (carto.com/basemaps/apikey). Set env CARTO_API_KEY or
+    .streamlit/secrets.toml -> CARTO_API_KEY = "..." to use CARTO's dark basemap instead of Esri's."""
+    key = os.environ.get("CARTO_API_KEY")
+    if not key:
+        try:
+            key = st.secrets.get("CARTO_API_KEY")
+        except Exception:
+            key = None
+    return key
+
+
+def _tile_set():
+    tiles = dict(TILES)
+    key = _carto_key()
+    if key:
+        carto = {"Dark": (f"https://basemaps.cartocdn.com/rastertiles/dark_all/{{z}}/{{x}}/{{y}}.png?key={key}",
+                          "© OpenStreetMap contributors © CARTO", 19)}
+        tiles = {**carto, **{k: v for k, v in tiles.items() if k != "Dark"}}
+    return tiles
 
 
 # ---------------------------------------------------------------------------
@@ -48,8 +71,8 @@ def distance_m(lat1, lon1, lat2, lon2):
 def _base_map(center, zoom):
     m = folium.Map(location=list(center), zoom_start=int(zoom), tiles=None,
                    control_scale=True, zoom_control=True)
-    for i, (name, (url, attr)) in enumerate(TILES.items()):
-        folium.TileLayer(tiles=url, attr=attr, name=name, show=(i == 0), max_zoom=19).add_to(m)
+    for i, (name, (url, attr, maxz)) in enumerate(_tile_set().items()):
+        folium.TileLayer(tiles=url, attr=attr, name=name, show=(i == 0), max_zoom=maxz).add_to(m)
     folium.LayerControl(collapsed=True, position="topright").add_to(m)
     m.get_root().header.add_child(folium.Element(MAP_CSS))
     return m
@@ -129,10 +152,14 @@ def _fallback_status_map(sites, chosen, height):
     kw = dict(lat="lat", lon="lon", color="status", size="size", size_max=18, hover_name="site",
               hover_data={"size": False, "lat": False, "lon": False, "score": True},
               color_discrete_map=STATUS_COLORS, zoom=7)
+    layer = dict(below="traces", sourcetype="raster", sourceattribution="Tiles © Esri",
+                 source=[TILES["Dark"][0]])
     try:
-        fig = px.scatter_map(df, map_style="carto-darkmatter", **kw)
+        fig = px.scatter_map(df, map_style="white-bg", **kw)
+        fig.update_layout(map_layers=[layer])
     except Exception:
-        fig = px.scatter_mapbox(df, mapbox_style="carto-darkmatter", **kw)
+        fig = px.scatter_mapbox(df, mapbox_style="white-bg", **kw)
+        fig.update_layout(mapbox_layers=[layer])
     fig.update_layout(height=height, legend_title_text="", margin=dict(l=0, r=0, t=0, b=0))
     style_figure(fig)
     try:
