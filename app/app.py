@@ -40,24 +40,13 @@ import plotly.graph_objects as pgo   # NOTE: not "go" -> go() is the navigation 
 import streamlit as st
 from plotly.subplots import make_subplots
 
+import maps
+from style import (BAND_COLORS, BAND_EMOJI, ORANGE, STATUS_COLORS, T, inject_css,
+                   style_figure)
+
 st.set_page_config(page_title="VeriFlow", page_icon="🏮", layout="wide")
 
-ORANGE = "#F7931E"
-STATUS_COLORS = {
-    "Normal": "#4CAF50",
-    "Sensor Fault Suspected": "#F7931E",
-    "Needs Verification": "#F5D63D",
-    "Potential Incident": "#E8505B",
-}
-# Threat bands used by the level bars, graphs and tanks
-BAND_COLORS = {
-    "Normal": "#4CAF50",
-    "Watch": "#F5D63D",
-    "Flagged": "#F7931E",
-    "Critical": "#E8505B",
-    "Sensor fault": "#9E9E9E",
-}
-BAND_EMOJI = {"Normal": "🟩", "Watch": "🟨", "Flagged": "🟧", "Critical": "🟥", "Sensor fault": "⬜"}
+# Colours, fonts and CSS live in style.py (see DESIGN.md). Do not hard-code them here.
 
 # ---------------------------------------------------------------------------
 # Settings
@@ -227,71 +216,6 @@ DETAILS = {
 
 
 # ===========================================================================
-# STYLE (all CSS in one place so it is easy to move into style.py later)
-# ===========================================================================
-CSS = """
-<style>
-.vf-hero { text-align:center; padding: 3rem 0 1.5rem 0; }
-.vf-hero h1 { font-size: 4.2rem; margin: 0; color: #F7931E; letter-spacing: 1px;
-              text-shadow: 0 0 24px rgba(247,147,30,.35); }
-.vf-hero p  { font-size: 1.4rem; font-style: italic; opacity: .85; margin: .4rem 0 0 0; }
-.vf-auth-title { text-align:center; margin: .5rem 0 1rem 0; }
-.vf-auth-title h1 { color: #F7931E; margin: 0; font-size: 2.6rem; }
-.vf-auth-title p { opacity: .8; font-style: italic; margin: .2rem 0 0 0; }
-.vf-user { text-align:right; line-height:1.25; font-size:.95rem; }
-
-/* reading-level bars */
-.vf-lvls { display:flex; flex-direction:column; gap:.95rem; margin:.4rem 0 .6rem 0; }
-.vf-lvl-head { display:flex; justify-content:space-between; font-size:.95rem; margin-bottom:.25rem; }
-.vf-lvl-track { position:relative; height:16px; border-radius:10px;
-                background: rgba(255,255,255,.10); overflow:hidden; }
-.vf-lvl-fill { height:100%; border-radius:10px; transition: width .6s ease, background-color .6s ease; }
-.vf-striped { background-image: repeating-linear-gradient(45deg, rgba(0,0,0,.28) 0 8px, transparent 8px 16px); }
-.vf-tick { position:absolute; top:0; bottom:0; width:2px; background: rgba(255,255,255,.7); }
-.vf-tick-crit { background:#E8505B; }
-.vf-lvl-note { font-size:.8rem; margin-top:.2rem; }
-.vf-legend { font-size:.82rem; opacity:.8; margin-bottom:.4rem; }
-
-/* water-level tanks */
-.vf-tank-site { font-weight:600; margin:.8rem 0 .1rem 0; color:#F7931E; }
-.vf-tanks { display:flex; flex-wrap:wrap; gap:1.3rem; margin:.5rem 0 1rem 0; }
-.vf-tank-wrap { display:flex; flex-direction:column; align-items:center; width:110px; text-align:center; }
-.vf-tank { position:relative; width:84px; height:140px; border:3px solid rgba(255,255,255,.55);
-           border-top-width:1px; border-radius:6px 6px 22px 22px; overflow:hidden;
-           background: rgba(0,0,0,.25); }
-.vf-tank.mini { width:58px; height:92px; }
-.vf-water { position:absolute; left:0; right:0; bottom:0; background-color: var(--c);
-            opacity:.88; transition: height .8s ease; }
-.vf-wave { position:absolute; left:0; top:-9px; width: calc(100% + 40px); height:10px;
-           background: radial-gradient(circle at 10px -2px, transparent 12px, var(--c) 13px);
-           background-size: 20px 10px; background-repeat: repeat-x;
-           animation: vf-wave-move 2.6s linear infinite; }
-.vf-still .vf-wave { animation:none; display:none; }
-@keyframes vf-wave-move { from { transform: translateX(0); } to { transform: translateX(-20px); } }
-.vf-tank-val { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-               font-weight:700; font-size:1rem; text-shadow: 0 1px 3px rgba(0,0,0,.9); z-index:2; }
-.vf-tank.mini .vf-tank-val { font-size:.78rem; }
-.vf-tank-label { margin-top:.35rem; font-weight:600; font-size:.9rem; }
-.vf-tank-sub { font-size:.74rem; opacity:.85; }
-
-/* immediate-attention pop-up (a keyed Streamlit container pinned to the right side) */
-.st-key-vf_alert_panel { position: fixed; top: 4.2rem; right: 1.2rem; width: min(370px, 92vw);
-    max-height: 72vh; overflow-y: auto; z-index: 1000000; background: #2B1215;
-    border: 1px solid #E8505B; border-left: 7px solid #E8505B; border-radius: 12px;
-    padding: .8rem 1rem; box-shadow: 0 8px 30px rgba(232,80,91,.45);
-    animation: vf-slide .4s ease-out, vf-pulse 2.2s ease-in-out infinite; }
-@keyframes vf-slide { from { transform: translateX(120%); opacity:0; } to { transform:none; opacity:1; } }
-@keyframes vf-pulse { 0%,100% { box-shadow: 0 8px 30px rgba(232,80,91,.30); }
-                      50% { box-shadow: 0 8px 38px rgba(232,80,91,.85); } }
-</style>
-"""
-
-
-def inject_css():
-    st.markdown(CSS, unsafe_allow_html=True)
-
-
-# ===========================================================================
 # AUTH (accounts in users.json, passwords hashed with salted PBKDF2-SHA256)
 # ===========================================================================
 @st.cache_resource
@@ -416,6 +340,8 @@ def demo_config(i, name, lat, lon):
         "site_type": DEMO_SITE_TYPES[(i - 1) % len(DEMO_SITE_TYPES)],
         "latitude": lat,
         "longitude": lon,
+        "sensor_latitude": round(lat + 0.0015 * ((i % 3) - 1), 5),
+        "sensor_longitude": round(lon + 0.0015 * (((i + 1) % 3) - 1), 5),
         "parameters": list(params),
         "ranges": {p: (lib[p]["vmin"], lib[p]["vmax"], lib[p]["typical"]) for p in params},
         **DEFAULT_CRITERIA,
@@ -803,12 +729,12 @@ def registry_display(reg):
 def style_status(df):
     def colour(v):
         if "Persistently" in v:
-            return "color:#E8505B;font-weight:600"
+            return f"color:{T['red']};font-weight:600"
         if "Worn" in v:
-            return "color:#F7931E;font-weight:600"
+            return f"color:{T['orange']};font-weight:600"
         if "Intermittent" in v:
-            return "color:#F5D63D"
-        return "color:#4CAF50"
+            return f"color:{T['yellow']}"
+        return f"color:{T['green']}"
     try:
         return df.style.map(colour, subset=["Status"])
     except Exception:
@@ -883,7 +809,9 @@ def config_rows(cfg):
         ("Sensor number / ID", cfg["sensor_id"]),
         ("Monitoring domain", cfg["domain"]),
         ("Type of site", cfg["site_type"]),
-        ("Location (lat, lon)", f"{cfg['latitude']:.4f}, {cfg['longitude']:.4f}"),
+        ("Site location (lat, lon)", f"{cfg['latitude']:.5f}, {cfg['longitude']:.5f}"),
+        ("Sensor location (lat, lon)", f"{cfg.get('sensor_latitude', cfg['latitude']):.5f}, "
+                                       f"{cfg.get('sensor_longitude', cfg['longitude']):.5f}"),
         ("Parameters tracked", ", ".join(cfg["parameters"])),
         ("Sensor installed on", cfg.get("installed", "-")),
         ("Rated sensor life", f"{cfg.get('rated_life_months', '-')} months"),
@@ -1180,18 +1108,20 @@ def page_add_site():
                               placeholder="e.g. WQ-009").strip()
     domain = c1.selectbox("Monitoring domain", ["Water", "Air"], key="new_domain")
     site_type = c2.selectbox("Type of site", SITE_TYPES[domain], key=f"new_type_{domain}")
-    latitude = c1.number_input("Latitude", -90.0, 90.0, 12.5, step=0.01, format="%.4f",
-                               key="new_lat")
-    longitude = c2.number_input("Longitude", -180.0, 180.0, 77.5, step=0.01, format="%.4f",
-                                key="new_lon")
     installed = c1.date_input("Sensor installed on", value=date.today(), max_value=date.today(),
                               key="new_installed")
     rated_life = c2.number_input("Rated sensor life (months)", 6, 240,
                                  DEFAULT_CRITERIA["rated_life_months"], key="new_life",
                                  help="Used to flag worn-out sensors in the sensor registry.")
 
-    # ---- 2. Fields to track -------------------------------------------------
-    st.subheader("2. Fields to track")
+    # ---- 2. Location (map) ---------------------------------------------------
+    st.subheader("2. Location: site and sensor")
+    loc = maps.location_picker(st.session_state.sites)
+    latitude, longitude = loc["site"]
+    sensor_lat, sensor_lon = loc["sensor"]
+
+    # ---- 3. Fields to track -------------------------------------------------
+    st.subheader("3. Fields to track")
     lib = PARAMETER_LIBRARY[domain]
     parameters = st.multiselect("Parameters measured by this sensor *", list(lib),
                                 default=DEFAULT_PARAMS[domain], key=f"new_params_{domain}")
@@ -1223,7 +1153,7 @@ def page_add_site():
                 ranges[p] = (float(lo), float(hi), float(typ))
 
     # ---- 3. Flag level and warning criteria ----------------------------------
-    st.subheader("3. Flag event level and warning criteria")
+    st.subheader("4. Flag event level and warning criteria")
     d = DEFAULT_CRITERIA
     a, b = st.columns(2)
     with a:
@@ -1254,7 +1184,7 @@ def page_add_site():
                                          help="Used to rank the queue: higher = investigated sooner.")
 
     # ---- 4. Contact and notes ------------------------------------------------
-    st.subheader("4. Contact and notes (optional)")
+    st.subheader("5. Contact and notes (optional)")
     contact = st.text_input("Responsible person / team", key="new_contact")
     notes = st.text_area("Notes", key="new_notes", height=80)
 
@@ -1269,6 +1199,7 @@ def page_add_site():
             "origin": "Added by user",
             "site_name": site_name, "sensor_id": sensor_id, "domain": domain,
             "site_type": site_type, "latitude": latitude, "longitude": longitude,
+            "sensor_latitude": sensor_lat, "sensor_longitude": sensor_lon,
             "parameters": list(parameters), "ranges": ranges,
             "installed": installed.isoformat(), "rated_life_months": int(rated_life),
             "flag_z": flag_z, "persistence": persistence, "override_z": override_z,
@@ -1305,11 +1236,13 @@ def frag_trends():
     fig = px.line(
         d, x="timestamp", y="value", color="type", facet_col="parameter",
         facet_col_wrap=2, markers=True,
-        color_discrete_map={"Baseline": "#9E9E9E", "Flagged": "#E8505B"},
+        color_discrete_map={"Baseline": T["orange"], "Flagged": T["red"]},
     )
     fig.update_yaxes(matches=None, showticklabels=True)
     fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
-    fig.update_layout(height=380, legend_title_text="", margin=dict(l=0, r=0, t=30, b=0))
+    fig.update_traces(line=dict(width=2.5))
+    fig.update_layout(height=400, legend_title_text="", margin=dict(l=0, r=0, t=30, b=0))
+    style_figure(fig)
     show_plot(fig, key="ui_trends_chart")
 
 
@@ -1359,7 +1292,7 @@ def live_figure(site, cfg, params, n, series_map):
             x=t_n, y=v_n, marker_color=colors, customdata=custom, showlegend=False,
             hovertemplate="%{x|%H:%M}<br>%{y:.3f}<br>%{customdata[1]} · %{customdata[0]:+.1f}σ<extra></extra>",
         ), row=r, col=c)
-        fig.add_hline(y=typical, line_dash="dot", line_color="#BBBBBB", row=r, col=c)
+        fig.add_hline(y=typical, line_dash="dot", line_color=T["muted"], row=r, col=c)
         for sign in (1, -1):
             fig.add_hline(y=typical + sign * cfg["flag_z"] * noise, line_dash="dash",
                           line_color=BAND_COLORS["Flagged"], line_width=1, row=r, col=c)
@@ -1368,9 +1301,8 @@ def live_figure(site, cfg, params, n, series_map):
         pad = 0.08 * (hi_y - lo_y)
         fig.update_yaxes(range=[lo_y - pad, hi_y + pad], row=r, col=c)
     fig.update_layout(height=260 * nrows + 30, showlegend=False, bargap=0.15,
-                      margin=dict(l=0, r=0, t=40, b=0),
-                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
-    return fig
+                      margin=dict(l=0, r=0, t=40, b=0))
+    return style_figure(fig)
 
 
 def frag_live_graph():
@@ -1479,11 +1411,12 @@ def page_dashboard():
     picked = st.sidebar.selectbox("Location", names, index=names.index(chosen_site))
     if picked != chosen_site:
         ss.current_site = picked
+        ss.ui_map_last_tip = None
         st.rerun()
     st.sidebar.button("➕ Add new site / sensor", on_click=go, args=("add_site",))
 
     # Header
-    st.markdown("## 🏮 VeriFlow  <small style='color:#F7931E'>SIMULATED DATA</small>",
+    st.markdown("## 🏮 VeriFlow <span class='vf-badge'>SIMULATED DATA</span>",
                 unsafe_allow_html=True)
     st.caption("Evidence before alarm. Every case needs human review and confirmatory testing.")
     st.markdown(f"**{chosen_site}**  ·  Sensor {cfg['sensor_id']}  ·  {cfg['site_type']}  ·  "
@@ -1497,21 +1430,15 @@ def page_dashboard():
     c4.metric("Need investigation", int((sites["status"] == "Potential Incident").sum()))
 
     # Map + live trends
-    left, right = st.columns([1, 2])
+    left, right = st.columns([5, 6])
     with left:
         st.subheader("Map: status pins")
-        map_df = sites.assign(selected=np.where(sites["site"] == chosen_site, 30, 16))
-        fig_map = px.scatter(
-            map_df, x="lon", y="lat", color="status", text="site", size="selected",
-            size_max=18, color_discrete_map=STATUS_COLORS,
-            hover_name="site", hover_data={"selected": False, "score": True,
-                                            "lon": False, "lat": False},
-        )
-        fig_map.update_traces(textposition="top center")
-        fig_map.update_layout(xaxis_visible=False, yaxis_visible=False,
-                              legend_title_text="", height=380,
-                              margin=dict(l=0, r=0, t=10, b=0))
-        show_plot(fig_map, key="ui_map_chart")
+        clicked = maps.status_map(sites, ss.configs, chosen_site, key="vf_status_map", height=400)
+        if clicked and clicked != ss.get("ui_map_last_tip"):
+            ss.ui_map_last_tip = clicked              # act on each pin click only once
+            if clicked in names and clicked != chosen_site:
+                ss.current_site = clicked
+                st.rerun()
     with right:
         st.subheader(f"Trends: last 2 h  ({chosen_site})")
         live_fragment(frag_trends)()
