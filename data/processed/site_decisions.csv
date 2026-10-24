@@ -1,0 +1,9 @@
+site_id,decision,complaints_2h,reason
+1,Normal,0,No corroborated anomaly
+2,Normal,0,No corroborated anomaly
+3,Potential Incident,2,8 consecutive flagged readings (mean |z| 32.2); Sensor reliability R=1.00; 1 partner parameter(s) also flagged; 2 complaint(s) in the last 2 h
+4,Normal,0,No corroborated anomaly
+5,Needs Verification,3,3 complaints in the last 2 h while sensors look normal
+6,Sensor Fault Suspected,0,Sensor reliability R=0.40 is below 0.5; No partner parameter or complaints corroborate it
+7,Normal,0,No corroborated anomaly
+8,Normal,0,No corroborated anomaly

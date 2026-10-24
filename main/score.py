@@ -5,7 +5,10 @@ Steps: Score + Rank.
 Evidence Score (0-100) = 100 * R * (0.35*S + 0.30*P + 0.20*X + 0.15*C)
 It RANKS and EXPLAINS cases. It is NOT a probability of contamination.
 """
-from classify import NORMAL, FAULT, VERIFY, INCIDENT
+try:  # Supports both ``python main/score.py`` and package imports by pipeline.py.
+    from .classify import NORMAL, FAULT, VERIFY, INCIDENT
+except ImportError:
+    from classify import NORMAL, FAULT, VERIFY, INCIDENT
 
 WEIGHTS = {"S": 0.35, "P": 0.30, "X": 0.20, "C": 0.15}   # design choices, not validated
 PERSISTENCE_WINDOW = 6

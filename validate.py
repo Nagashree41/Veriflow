@@ -419,8 +419,8 @@ def main(argv=None):
     )
     parser.add_argument(
         "--input", "-i",
-        default="synthetic_readings.csv",
-        help="Path to the readings CSV (default: synthetic_readings.csv)",
+        default="data/readings.csv",
+        help="Path to the readings CSV (default: data/readings.csv)",
     )
     parser.add_argument(
         "--output-dir", "-o",

@@ -11,7 +11,10 @@ import pandas as pd
 
 
 SITES_COLUMNS = ["site_id", "name", "lat", "lng", "sensitivity"]
-READINGS_COLUMNS = ["site_id", "timestamp", "ph", "turbidity", "tds", "chlorine"]
+# ``label`` is deliberately included in every reading so evaluation can use the
+# same CSV as the detector.  It is ground truth only; the pipeline never reads
+# it while making a decision.
+READINGS_COLUMNS = ["site_id", "timestamp", "ph", "turbidity", "tds", "chlorine", "label"]
 COMPLAINTS_COLUMNS = ["site_id", "timestamp"]
 LABELS_COLUMNS = ["site_id", "start", "end", "scenario", "true_class"]
 
@@ -67,7 +70,7 @@ def generate(seed=42, end_time=None):
         for key, places in decimals.items():
             values[key] = np.round(values[key], places)
         for index, timestamp in enumerate(timestamp_values):
-            rows.append((site_id, timestamp, *(values[key][index] for key in READINGS_COLUMNS[2:])))
+            rows.append((site_id, timestamp, *(values[key][index] for key in ("ph", "turbidity", "tds", "chlorine")), "Normal"))
 
     readings = pd.DataFrame(rows, columns=READINGS_COLUMNS)
 
@@ -82,12 +85,14 @@ def generate(seed=42, end_time=None):
     readings.loc[idx3[-8:], "chlorine"] = np.round(rng.normal(0.20, 0.01, 8), 2)
     readings.loc[idx3[-8:], "turbidity"] = np.round(rng.normal(3.00, 0.08, 8), 2)
 
-    idx4 = site_rows(4)
-    readings.loc[idx4[-12:], "tds"] = readings.loc[idx4[-13], "tds"]
-
     idx6 = site_rows(6)
     readings.loc[idx6[-14:-4], "turbidity"] = np.nan
-    readings.loc[idx6[-3:], "ph"] = 15.0
+    readings.loc[idx6[-12:], "tds"] = readings.loc[idx6[-13], "tds"]
+
+    # The answer key lives beside every affected reading.  It is never used by
+    # the detector; it is only for evaluation after predictions are produced.
+    readings.loc[idx3[-8:], "label"] = "Potential Incident"
+    readings.loc[idx6[-14:], "label"] = "Sensor Fault Suspected"
 
     # Complaint timestamps are sampled from the final two hours (the final 24 readings).
     complaint_rows = []
@@ -97,15 +102,19 @@ def generate(seed=42, end_time=None):
     complaints = pd.DataFrame(complaint_rows, columns=COMPLAINTS_COLUMNS).sort_values(
         ["site_id", "timestamp"], ignore_index=True
     )
+    complaint_times_site5 = complaints.loc[complaints.site_id.eq(5), "timestamp"]
+    readings.loc[
+        readings.site_id.eq(5) & readings.timestamp.isin(complaint_times_site5), "label"
+    ] = "Needs Verification"
 
     labels = pd.DataFrame(
         [
             (1, timestamp_values[0], timestamp_values[-1], "normal", "Normal"),
             (2, timestamp_values[-4], timestamp_values[-4], "spike", "Normal"),
             (3, timestamp_values[-8], timestamp_values[-1], "incident", "Potential Incident"),
-            (4, timestamp_values[-12], timestamp_values[-1], "stuck", "Sensor Fault Suspected"),
+            (4, timestamp_values[0], timestamp_values[-1], "normal", "Normal"),
             (5, complaints.loc[complaints.site_id.eq(5), "timestamp"].min(), complaints.loc[complaints.site_id.eq(5), "timestamp"].max(), "complaints_only", "Needs Verification"),
-            (6, timestamp_values[-14], timestamp_values[-1], "missing_or_out_of_range", "Sensor Fault Suspected"),
+            (6, timestamp_values[-14], timestamp_values[-1], "sensor_fault", "Sensor Fault Suspected"),
             (7, timestamp_values[0], timestamp_values[-1], "normal", "Normal"),
             (8, timestamp_values[0], timestamp_values[-1], "normal", "Normal"),
         ],
@@ -139,16 +148,15 @@ def _self_check(sites, readings, complaints, labels):
     assert 0.45 <= by_site[2].iloc[-1].chlorine <= 0.75, "Site 2 latest chlorine must be normal."
     assert (by_site[3].tail(8).chlorine.between(0.16, 0.24)).all(), "Site 3 chlorine story failed."
     assert (by_site[3].tail(8).turbidity.between(2.7, 3.3)).all(), "Site 3 turbidity story failed."
-    assert by_site[4].tail(12).tds.nunique() == 1, "Site 4 TDS values are not stuck."
-    assert by_site[4].tail(12).tds.iloc[0] == by_site[4].iloc[-13].tds, "Site 4 stuck value is wrong."
     assert by_site[6].turbidity.isna().sum() == 10, "Site 6 must have exactly 10 missing turbidity values."
     assert by_site[6].iloc[-14:-4].turbidity.isna().all(), "Site 6 missing interval is wrong."
-    assert (by_site[6].tail(3).ph == 15.0).all(), "Site 6 final pH values must be 15.0."
+    assert by_site[6].tail(12).tds.nunique() == 1, "Site 6 TDS values are not stuck."
+    assert by_site[6].tail(12).tds.iloc[0] == by_site[6].iloc[-13].tds, "Site 6 stuck value is wrong."
     counts = complaints.groupby("site_id").size().reindex(range(1, 9), fill_value=0)
     assert counts.to_dict() == {1: 0, 2: 0, 3: 2, 4: 0, 5: 3, 6: 0, 7: 0, 8: 0}, "Complaint counts are wrong."
     last_two_hours = readings.timestamp.drop_duplicates().iloc[-24:].tolist()
     assert complaints.timestamp.isin(last_two_hours).all(), "Every complaint must be in the final two hours."
-    assert set(labels.scenario) == {"spike", "incident", "stuck", "complaints_only", "missing_or_out_of_range", "normal"}
+    assert set(labels.scenario) == {"spike", "incident", "complaints_only", "sensor_fault", "normal"}
 
     print("Rows per site:")
     print(per_site.to_string())
@@ -156,10 +164,9 @@ def _self_check(sites, readings, complaints, labels):
     print(labels[["site_id", "scenario", "true_class"]].to_string(index=False))
     print("\nSite 3: last 8 readings:")
     print(by_site[3].tail(8).to_string(index=False))
-    print("\nSite 4: last 12 TDS values:")
-    print(by_site[4].tail(12)[["timestamp", "tds"]].to_string(index=False))
+    print("\nSite 6: last 12 stuck TDS values:")
+    print(by_site[6].tail(12)[["timestamp", "tds"]].to_string(index=False))
     print("\nSite 6 NaN turbidity values:", int(by_site[6].turbidity.isna().sum()))
-    print("Site 6 last 3 pH values:", by_site[6].tail(3).ph.tolist())
     print("\nComplaint counts per site:")
     print(counts.to_string())
     print("ALL CHECKS PASSED")

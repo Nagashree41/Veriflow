@@ -1,0 +1,5 @@
+parameter,label,reasons,R,consecutive_flags,mean_abs_z,partner_flagged,complaints_2h,direction,site_id,location,score,score_raw,S,P,X,C,limited,priority,adjusted_score
+turbidity,Potential Incident,"['8 consecutive flagged readings (mean |z| 32.2)', 'Sensor reliability R=1.00', '1 partner parameter(s) also flagged', '2 complaint(s) in the last 2 h']",1.0,8,32.17115185185187,1,2,high,3,Site 3,85,84.99999999999999,1.0,1.0,0.5,0.6666666666666666,[],P1,72.24999999999999
+chlorine,Potential Incident,"['8 consecutive flagged readings (mean |z| 13.5)', 'Sensor reliability R=1.00', '1 partner parameter(s) also flagged', '2 complaint(s) in the last 2 h']",1.0,8,13.489999999999988,1,2,low,3,Site 3,85,84.99999999999999,1.0,1.0,0.5,0.6666666666666666,[],P1,72.24999999999999
+Complaints,Needs Verification,['3 complaints in the last 2 h while sensors look normal'],1.0,0,0.0,0,3,,5,Site 5,15,15.0,0.0,0.0,0.0,1.0,[],P2,12.75
+tds,Sensor Fault Suspected,"['Sensor reliability R=0.40 is below 0.5', 'No partner parameter or complaints corroborate it']",0.4,0,0.0,0,0,,6,Site 6,0,0.0,0.0,0.0,0.0,0.0,[],Maint.,0.0
