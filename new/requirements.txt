@@ -1,0 +1,7 @@
+streamlit>=1.39
+plotly>=5.24
+pandas
+numpy
+folium
+streamlit-folium
+scikit-learn
