@@ -8,6 +8,7 @@ Output: a dict of numbers that classify.py and score.py consume.
 """
 import numpy as np
 import pandas as pd
+import math
 
 # ---------------------------------------------------------------- settings
 # From the slides
@@ -28,6 +29,21 @@ PHYSICAL_RANGES = {
     "tds": (0.0, 5000.0),         # mg/L
     "chlorine": (0.0, 10.0),      # mg/L
 }
+
+# Placeholder limits and sensor errors; confirm from sensor datasheet and water-quality standard.
+SAFE_LIMITS = {
+    "ph": {"low": 6.5, "high": 8.5, "sigma": 0.05},
+    "turbidity": {"low": None, "high": 5.0, "sigma": 0.2},
+    "tds": {"low": None, "high": 500.0, "sigma": 10.0},
+    "chlorine": {"low": 0.2, "high": 4.0, "sigma": 0.05},
+}
+P_ALERT = 0.05
+CUSUM_K_FRAC = 0.5
+CUSUM_H_FRAC = 5.0
+TREND_WINDOW = 12
+RESPONSE_READINGS = 6
+LOGISTIC_CLIP = 60.0
+GUARD_BAND_Z = 1.6448536269514722  # one-sided normal quantile for P_ALERT
 
 
 # ------------------------------------------------------------ anomaly part
@@ -60,6 +76,87 @@ def trailing_run(flags: pd.Series) -> int:
         else:
             break
     return run
+
+
+def breach_probability(x, limit, sigma, side):
+    """Probability that measurement error places x beyond an absolute limit."""
+    if pd.isna(x) or limit is None or not np.isfinite(sigma) or sigma <= 0:
+        return 0.0
+    z = ((limit - x) if side == "high" else (x - limit)) / sigma
+    return float(min(1.0, max(0.0, 0.5 * math.erfc(z / math.sqrt(2.0)))) )
+
+
+def severity_logistic(x, limit, sigma, side):
+    """Smooth, bounded severity relative to an absolute limit."""
+    if pd.isna(x) or limit is None or not np.isfinite(sigma) or sigma <= 0:
+        return 0.0
+    distance = (x - limit) if side == "high" else (limit - x)
+    exponent = float(np.clip(-distance / sigma, -LOGISTIC_CLIP, LOGISTIC_CLIP))
+    return float(1.0 / (1.0 + math.exp(exponent)))
+
+
+def cusum(values, mu0, sigma):
+    """Return upper/lower CUSUM paths, final alarm, and its direction."""
+    x = pd.Series(values, dtype=float).reset_index(drop=True)
+    k, h = CUSUM_K_FRAC * sigma, CUSUM_H_FRAC * sigma
+    hi, lo, upper, lower = [], [], 0.0, 0.0
+    for value in x:
+        if pd.notna(value):
+            upper = max(0.0, upper + value - mu0 - k)
+            lower = max(0.0, lower + mu0 - value - k)
+        hi.append(upper)
+        lo.append(lower)
+    alarm_hi, alarm_lo = upper > h, lower > h
+    direction = "high" if alarm_hi and (not alarm_lo or upper >= lower) else "low" if alarm_lo else None
+    return pd.Series(hi, index=x.index), pd.Series(lo, index=x.index), bool(alarm_hi or alarm_lo), direction
+
+
+def time_to_limit(values, limit, side, window=TREND_WINDOW):
+    """Estimate readings remaining to a limit from the recent least-squares slope."""
+    valid = pd.Series(values, dtype=float).dropna().tail(window)
+    if limit is None or len(valid) < 4:
+        return float("inf")
+    last = float(valid.iloc[-1])
+    if (side == "high" and last >= limit) or (side == "low" and last <= limit):
+        return 0.0
+    slope = float(np.polyfit(np.arange(len(valid)), valid.to_numpy(), 1)[0])
+    toward = slope > 0 if side == "high" else slope < 0
+    if not toward:
+        return float("inf")
+    return max(0.0, float((limit - last) / slope))
+
+
+def limit_check(values, param, limits=None):
+    """Combine absolute-limit probability, severity, drift, and response-time checks."""
+    x = pd.Series(values, dtype=float).reset_index(drop=True)
+    cfg = (SAFE_LIMITS if limits is None else limits).get(param)
+    if cfg is None:
+        cfg = {"low": None, "high": None, "sigma": 1.0}
+    sigma = float(cfg["sigma"])
+    valid = x.dropna()
+    latest = float(valid.iloc[-1]) if len(valid) else float("nan")
+    sides = [(side, cfg.get(side)) for side in ("low", "high") if cfg.get(side) is not None]
+    probs = [(breach_probability(latest, lim, sigma, side), side, lim)
+             for side, lim in sides]
+    p_breach, p_side, p_limit = max(probs, default=(0.0, None, None))
+    severity = max((severity_logistic(latest, lim, sigma, side) for side, lim in sides), default=0.0)
+    baseline = float(valid.iloc[:MIN_BASELINE].median()) if len(valid) else 0.0
+    hi, lo, c_alarm, c_direction = cusum(x, baseline, sigma)
+    times = [(time_to_limit(x, lim, side), side, lim) for side, lim in sides]
+    t_limit, t_side, t_value = min(times, default=(float("inf"), None, None))
+    reasons = []
+    if p_breach >= P_ALERT:
+        guard = p_limit - GUARD_BAND_Z * sigma if p_side == "high" else p_limit + GUARD_BAND_Z * sigma
+        verb = "exceeding" if p_side == "high" else "falling below"
+        reasons.append(f"Reading {latest:g} has {p_breach:.1%} chance of {verb} the {p_limit:g} limit (guard band starts at {guard:g})")
+    if c_alarm:
+        reasons.append(f"CUSUM detected sustained {c_direction} drift from baseline {baseline:g}")
+    if t_limit < RESPONSE_READINGS:
+        reasons.append(f"Trend may reach the {t_value:g} {t_side} limit in {t_limit:.1f} readings")
+    return {"p_breach": p_breach, "severity": severity, "cusum_alarm": c_alarm,
+            "cusum_direction": c_direction, "time_to_limit": t_limit,
+            "limit_alarm": bool(p_breach >= P_ALERT or c_alarm or t_limit < RESPONSE_READINGS),
+            "limit_reasons": reasons, "cusum_hi": hi, "cusum_lo": lo}
 
 
 # ---------------------------------------------------------- reliability part
@@ -124,8 +221,8 @@ def sensor_reliability(values: pd.Series, flags: pd.Series, param: str) -> dict:
 
 
 # ------------------------------------------------------------- main entry
-def analyze_series(values: pd.Series, param: str) -> dict:
-    """Run detection + reliability on one parameter's readings."""
+def analyze_series(values: pd.Series, param: str, reliability: float | None = None, limits=None) -> dict:
+    """Run detection on one parameter, using validator ``reliability`` when supplied."""
     values = values.astype(float).reset_index(drop=True)
     z = rolling_modified_z(values)
     flags = z.abs() >= Z_FLAG                      # NaN -> False
@@ -135,9 +232,13 @@ def analyze_series(values: pd.Series, param: str) -> dict:
     run_z = run_z.tail(PERSISTENCE_WINDOW)
 
     rel = sensor_reliability(values, flags, param)
+    # ``validate.py`` is the canonical reliability implementation.  Retaining
+    # this fallback keeps the module useful on a standalone Series demo.
+    R = rel["R"] if reliability is None else float(reliability)
+    limit = limit_check(values, param, limits)
     return {
         "param": param,
-        "R": rel["R"],
+        "R": R,
         "reliability_detail": rel,
         "consecutive_flags": run,
         "flags_in_window": int(flags.tail(PERSISTENCE_WINDOW).sum()),
@@ -146,14 +247,16 @@ def analyze_series(values: pd.Series, param: str) -> dict:
         "latest_value": None if values.empty else values.iloc[-1],
         "z": z,          # full series, handy for the dashboard trend charts
         "flags": flags,
+        **limit,
     }
 
 
-def detect_location(df: pd.DataFrame, parameters=None) -> dict:
+def detect_location(df: pd.DataFrame, parameters=None, reliabilities: dict | None = None, limits=None) -> dict:
     """df = readings for ONE location (one column per parameter, oldest first).
     Returns {parameter: analyze_series(...) result}."""
     parameters = parameters or [c for c in df.columns if c in PHYSICAL_RANGES]
-    return {p: analyze_series(df[p], p) for p in parameters}
+    reliabilities = reliabilities or {}
+    return {p: analyze_series(df[p], p, reliabilities.get(p), limits) for p in parameters}
 
 
 # ------------------------------------------------------------------- demo
