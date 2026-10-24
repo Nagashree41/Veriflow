@@ -1,0 +1,9 @@
+site_id,start,end,scenario,true_class
+1,2026-10-23 10:15:00,2026-10-24 10:10:00,normal,Normal
+2,2026-10-24 09:55:00,2026-10-24 09:55:00,spike,Normal
+3,2026-10-24 09:35:00,2026-10-24 10:10:00,incident,Potential Incident
+4,2026-10-24 09:15:00,2026-10-24 10:10:00,stuck,Sensor Fault Suspected
+5,2026-10-24 08:50:00,2026-10-24 10:10:00,complaints_only,Needs Verification
+6,2026-10-24 09:05:00,2026-10-24 10:10:00,missing_or_out_of_range,Sensor Fault Suspected
+7,2026-10-23 10:15:00,2026-10-24 10:10:00,normal,Normal
+8,2026-10-23 10:15:00,2026-10-24 10:10:00,normal,Normal
