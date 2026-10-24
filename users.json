@@ -1,0 +1,20 @@
+{
+  "demo@veriflow.app": {
+    "name": "Demo Operator",
+    "role": "Control-room operator",
+    "salt": "89d37858e14963531833ff0ac2d1a548",
+    "hash": "eca56f0533afd7bab0b870f93afd17a149d48849bb780ce4252342c908a95fd7",
+    "created": "2026-10-24 11:21:40",
+    "failed": 0,
+    "locked_until": 0
+  },
+  "nirandevcm@gmail.com": {
+    "name": "dev",
+    "role": "Control-room operator",
+    "salt": "abb4049db2aec460f02835527c141f58",
+    "hash": "ae2a897ab962b6119fa8dd76a6cc1fa38090f6536213df2f4118366ea9bca5df",
+    "created": "2026-10-24 11:23:18",
+    "failed": 0,
+    "locked_until": 0
+  }
+}
