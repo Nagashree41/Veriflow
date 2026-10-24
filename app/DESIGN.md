@@ -54,15 +54,20 @@ orange default series, white pill tooltip with dark text. Lines 2.5px. Bars use 
 Area/line hero charts: orange line over a fading orange fill.
 
 ## 6. Maps (Folium + real tiles)
-* Built with `maps._base_map()`: dark CARTO tiles by default, Street and Satellite via the layer switch.
+* Built with `maps._base_map()`: keyless Esri Dark Gray tiles by default, Street and Satellite via the layer switch.
+  CARTO tiles now need a free API key; set `CARTO_API_KEY` (env var or `.streamlit/secrets.toml`) to use them instead.
+  Never use tile providers that show watermarks or need a hard-coded key.
 * Status pins: 10px circles, white 2px outline, fill = status colour. Potential Incident gets a pulsing halo.
   Selected site gets an orange ring. Tooltip = white pill (`site · status · score`).
 * Clicking a pin opens that site. Site picker: orange `S` pin, sensor: sky-blue `◉` pin, dashed line between them.
 * The map sits in a rounded glass frame like any other card. A status legend sits bottom-left.
 
 ## 7. Layout
-Wide layout, max width 1400px. Order on the dashboard: header, metric cards, map + trends,
-alert queue, alert detail, then the live monitor. Generous spacing, one idea per card.
+Wide layout, max width 1400px. Dashboard order (fixed): header, metric cards, then three glass
+segments (keyed containers `vf_section_*`): **1. Alerts** (queue + detail, red accent, always first),
+**2. Charts** (trends, own segment), **3. Map: status pins** (lower down). After that the live monitor
+(reading levels, live graphs, sensor registry, tanks). Generous spacing, one idea per segment.
+New dashboard areas get their own `vf_section_<name>` container; alerts must stay above everything else.
 
 ## 8. Do / Don't
 * DO import colours from `style.py`; DO use glass cards and pill controls.

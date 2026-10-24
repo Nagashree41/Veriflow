@@ -1429,45 +1429,50 @@ def page_dashboard():
     c3.metric("Suspected faults", int((sites["status"] == "Sensor Fault Suspected").sum()))
     c4.metric("Need investigation", int((sites["status"] == "Potential Incident").sum()))
 
-    # Map + live trends
-    left, right = st.columns([5, 6])
-    with left:
-        st.subheader("Map: status pins")
-        clicked = maps.status_map(sites, ss.configs, chosen_site, key="vf_status_map", height=400)
+    # ---- SEGMENT 1: Alerts (top of the page, most prominent) ----------------
+    n_inc = int((sites["status"] == "Potential Incident").sum())
+    with st.container(key="vf_section_alerts"):
+        pill = f"<span class='vf-badge vf-badge-red'>{n_inc} NEED ATTENTION</span>" if n_inc else \
+               "<span class='vf-badge vf-badge-green'>ALL CLEAR</span>"
+        st.markdown(f"### 🚨 Alerts {pill}", unsafe_allow_html=True)
+        q_col, d_col = st.columns([3, 2], gap="large")
+        with q_col:
+            st.markdown("**Alert queue**")
+            show_table(queue)
+            st.caption("Queue: P1 Potential Incident, P2 Needs Verification; "
+                       "ties by Evidence Score x (0.7 + 0.3 x location sensitivity). "
+                       "Sample values are simulated.")
+        with d_col:
+            st.markdown(f"**Alert detail: {chosen_site}**")
+            row = sites[sites["site"] == chosen_site].iloc[0]
+            st.markdown(f"**Status:** {row['status']}  |  **Evidence Score:** {row['score']} "
+                        "(rule-based, not a probability)")
+            info = DETAILS.get(chosen_site)
+            if info:
+                st.markdown("**Why flagged**")
+                for line in info["why"]:
+                    st.write("•", line)
+                st.markdown("**Next actions**")
+                for line in info["actions"]:
+                    st.write("•", line)
+            else:
+                st.info("No active alert for this site.")
+
+    # ---- SEGMENT 2: Charts (their own section) --------------------------------
+    with st.container(key="vf_section_charts"):
+        st.markdown(f"### 📈 Trends: last 2 h  ({chosen_site})")
+        live_fragment(frag_trends)()
+
+    # ---- SEGMENT 3: Map (lower down) -------------------------------------------
+    with st.container(key="vf_section_map"):
+        st.markdown("### 🗺️ Map: status pins")
+        clicked = maps.status_map(sites, ss.configs, chosen_site, key="vf_status_map", height=460)
+        st.caption("Click a pin to open that site.")
         if clicked and clicked != ss.get("ui_map_last_tip"):
             ss.ui_map_last_tip = clicked              # act on each pin click only once
             if clicked in names and clicked != chosen_site:
                 ss.current_site = clicked
                 st.rerun()
-    with right:
-        st.subheader(f"Trends: last 2 h  ({chosen_site})")
-        live_fragment(frag_trends)()
-
-    # Alert queue
-    st.subheader("Alert queue")
-    show_table(queue)
-    st.caption("Queue: P1 Potential Incident, P2 Needs Verification; "
-               "ties by Evidence Score x (0.7 + 0.3 x location sensitivity). "
-               "Sample values are simulated.")
-
-    # Alert detail (scoring)
-    st.subheader(f"Alert detail: {chosen_site}")
-    row = sites[sites["site"] == chosen_site].iloc[0]
-    st.markdown(f"**Status:** {row['status']}  |  **Evidence Score:** {row['score']} "
-                "(rule-based, not a probability)")
-    info = DETAILS.get(chosen_site)
-    if info:
-        a, b = st.columns(2)
-        with a:
-            st.markdown("**Why flagged**")
-            for line in info["why"]:
-                st.write("•", line)
-        with b:
-            st.markdown("**Next actions**")
-            for line in info["actions"]:
-                st.write("•", line)
-    else:
-        st.info("No active alert for this site.")
 
     # ------------------------------------------------------------------
     # Everything below the scoring is LIVE

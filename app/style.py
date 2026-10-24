@@ -172,6 +172,23 @@ button[kind="primary"]:hover, button[data-testid="stBaseButton-primary"]:hover {
 
 /* ---------- toggles / sliders pick up the orange accent via config.toml primaryColor ---------- */
 
+
+/* ---------- dashboard segments (keyed containers: vf_section_*) ---------- */
+[class*="st-key-vf_section_"] {
+    background: var(--vf-glass); border: 1px solid var(--vf-border); border-radius: var(--vf-r-lg);
+    padding: 1.2rem 1.4rem; margin: .6rem 0 1.1rem 0; box-shadow: 0 12px 32px rgba(0,0,0,.3);
+}
+[class*="st-key-vf_section_"] [data-testid="stPlotlyChart"] {
+    background: transparent; border: none; box-shadow: none; padding: 0;
+}
+.st-key-vf_section_alerts {
+    border-left: 6px solid var(--vf-red);
+    background: linear-gradient(135deg, rgba(255,90,95,.10), rgba(255,255,255,.03) 45%);
+    box-shadow: 0 12px 36px rgba(255,90,95,.18);
+}
+.vf-badge-red { color: var(--vf-red); background: rgba(255,90,95,.14); border-color: var(--vf-red); }
+.vf-badge-green { color: var(--vf-green); background: rgba(61,220,151,.12); border-color: var(--vf-green); }
+
 /* ---------- brand blocks ---------- */
 .vf-hero { text-align:center; padding: 3rem 0 1.5rem 0; }
 .vf-hero h1 { font-size: 4.2rem; margin: 0; color: var(--vf-orange); letter-spacing: 1px;
