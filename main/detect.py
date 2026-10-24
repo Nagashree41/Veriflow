@@ -124,8 +124,8 @@ def sensor_reliability(values: pd.Series, flags: pd.Series, param: str) -> dict:
 
 
 # ------------------------------------------------------------- main entry
-def analyze_series(values: pd.Series, param: str, reliability: float | None = None) -> dict:
-    """Run detection on one parameter, using validator ``reliability`` when supplied."""
+def analyze_series(values: pd.Series, param: str) -> dict:
+    """Run detection + reliability on one parameter's readings."""
     values = values.astype(float).reset_index(drop=True)
     z = rolling_modified_z(values)
     flags = z.abs() >= Z_FLAG                      # NaN -> False
@@ -135,16 +135,12 @@ def analyze_series(values: pd.Series, param: str, reliability: float | None = No
     run_z = run_z.tail(PERSISTENCE_WINDOW)
 
     rel = sensor_reliability(values, flags, param)
-    # ``validate.py`` is the canonical reliability implementation.  Retaining
-    # this fallback keeps the module useful on a standalone Series demo.
-    R = rel["R"] if reliability is None else float(reliability)
     return {
         "param": param,
-        "R": R,
+        "R": rel["R"],
         "reliability_detail": rel,
         "consecutive_flags": run,
         "flags_in_window": int(flags.tail(PERSISTENCE_WINDOW).sum()),
-        "transient_spikes": count_spike_reversals(flags.tail(RELIABILITY_WINDOW)),
         "mean_abs_z": float(run_z.abs().mean()) if run else 0.0,
         "direction": ("high" if run_z.mean() > 0 else "low") if run else None,
         "latest_value": None if values.empty else values.iloc[-1],
@@ -153,12 +149,11 @@ def analyze_series(values: pd.Series, param: str, reliability: float | None = No
     }
 
 
-def detect_location(df: pd.DataFrame, parameters=None, reliabilities: dict | None = None) -> dict:
+def detect_location(df: pd.DataFrame, parameters=None) -> dict:
     """df = readings for ONE location (one column per parameter, oldest first).
     Returns {parameter: analyze_series(...) result}."""
     parameters = parameters or [c for c in df.columns if c in PHYSICAL_RANGES]
-    reliabilities = reliabilities or {}
-    return {p: analyze_series(df[p], p, reliabilities.get(p)) for p in parameters}
+    return {p: analyze_series(df[p], p) for p in parameters}
 
 
 # ------------------------------------------------------------------- demo
