@@ -1,0 +1,8 @@
+# VeriFlow theme: keep in sync with style.py (T dict) and DESIGN.md
+[theme]
+base = "dark"
+primaryColor = "#F7931E"
+backgroundColor = "#120D09"
+secondaryBackgroundColor = "#1A130E"
+textColor = "#F6EEE6"
+font = "sans serif"

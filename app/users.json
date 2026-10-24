@@ -1,0 +1,11 @@
+{
+  "demo@veriflow.app": {
+    "name": "Demo Operator",
+    "role": "Control-room operator",
+    "salt": "e15851d7f1b460d45cf4dd6bc8d4fcb7",
+    "hash": "fa60880315e547a2d30be2d3aece9c1c79ba03b214b77f5073d962e459375f0c",
+    "created": "2026-10-24 12:41:04",
+    "failed": 0,
+    "locked_until": 0
+  }
+}
