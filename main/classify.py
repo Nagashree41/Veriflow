@@ -33,7 +33,8 @@ def count_partner_flags(results: dict, param: str) -> int:
 
 def classify_case(R, consecutive_flags, flags_in_window, mean_abs_z,
                   partner_flagged, complaints_2h, transient_spikes=0,
-                  check_complaints_only=True):
+                  check_complaints_only=True, p_breach=0.0,
+                  limit_alarm=False, limit_reasons=None):
     """Return (label, reasons). Rules are checked in this order."""
     anomaly = flags_in_window > 0
     support = partner_flagged >= 1 or complaints_2h >= SUPPORT_COMPLAINTS
@@ -45,6 +46,14 @@ def classify_case(R, consecutive_flags, flags_in_window, mean_abs_z,
                            "No partner parameter or complaints corroborate it"]
         return VERIFY, [f"Sensor reliability R={R:.2f} is low, but other evidence disagrees "
                         "with a pure sensor fault"]
+
+    if limit_alarm and R >= R_INCIDENT:
+        reasons = list(limit_reasons or [])
+        if p_breach >= 0.5:
+            reasons.append(f"Absolute-limit breach probability is {p_breach:.1%}; incident does not need persistence")
+            return INCIDENT, reasons
+        reasons.append("Absolute-limit warning needs verification")
+        return VERIFY, reasons
 
     # A one-reading jump that immediately returned to normal is deliberately
     # ignored.  It is logged by validation but must not become a water alarm.
@@ -92,13 +101,17 @@ def classify_location(results: dict, complaints_2h: int = 0) -> list:
         partner = count_partner_flags(results, param)
         label, reasons = classify_case(
             r["R"], r["consecutive_flags"], r["flags_in_window"], r["mean_abs_z"],
-            partner, complaints_2h, r.get("transient_spikes", 0), check_complaints_only=False)
+            partner, complaints_2h, r.get("transient_spikes", 0), check_complaints_only=False,
+            p_breach=r.get("p_breach", 0.0), limit_alarm=r.get("limit_alarm", False),
+            limit_reasons=r.get("limit_reasons"))
         if label != NORMAL:
             cases.append({
                 "parameter": param, "label": label, "reasons": reasons,
                 "R": r["R"], "consecutive_flags": r["consecutive_flags"],
                 "mean_abs_z": r["mean_abs_z"], "partner_flagged": partner,
                 "complaints_2h": complaints_2h, "direction": r["direction"],
+                "p_breach": r.get("p_breach", 0.0), "severity": r.get("severity", 0.0),
+                "limit_alarm": r.get("limit_alarm", False),
             })
 
     if not cases and complaints_2h >= VERIFY_COMPLAINTS:

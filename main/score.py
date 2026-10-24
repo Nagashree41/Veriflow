@@ -21,7 +21,8 @@ def _cap(v: float) -> float:
     return max(0.0, min(1.0, v))
 
 
-def evidence_score(R, mean_abs_z, consecutive_flags, partner_flagged, complaints_2h) -> dict:
+def evidence_score(R, mean_abs_z, consecutive_flags, partner_flagged, complaints_2h,
+                   severity_limit=None) -> dict:
     """Pass None for partner_flagged / complaints_2h when that evidence is unavailable:
     it counts as 0 and is listed under 'limited'."""
     limited = []
@@ -33,6 +34,8 @@ def evidence_score(R, mean_abs_z, consecutive_flags, partner_flagged, complaints
         limited.append("complaints")
 
     S = _cap(mean_abs_z / Z_SCALE)                    # severity
+    if severity_limit is not None:
+        S = max(S, _cap(severity_limit))
     P = _cap(consecutive_flags / PERSISTENCE_WINDOW)  # persistence
     X = _cap(partner_flagged / PARTNER_SCALE)         # partner support
     C = _cap(complaints_2h / COMPLAINT_SCALE)         # complaints
@@ -60,7 +63,8 @@ def rank_cases(cases: list, sensitivity: dict = None, default_sensitivity: float
         if c["label"] == NORMAL:
             continue
         ev = evidence_score(c["R"], c["mean_abs_z"], c["consecutive_flags"],
-                            c.get("partner_flagged"), c.get("complaints_2h"))
+                            c.get("partner_flagged"), c.get("complaints_2h"),
+                            severity_limit=c.get("severity"))
         sens = sensitivity.get(c.get("location"), default_sensitivity)
         adjusted = ev["score_raw"] * (0.7 + 0.3 * sens)
         ranked.append({**c, **ev, "priority": PRIORITY[c["label"]],
